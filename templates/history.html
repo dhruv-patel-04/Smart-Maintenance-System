@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-3">
+    <div>
+        <h2 class="mb-1 fw-bold">Prediction History</h2>
+        <p class="text-secondary mb-0">Complete log of model predictions, confidence levels, and maintenance actions.</p>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header">Historical Records</div>
+    <div class="panel-body">
+        <div class="table-responsive table-wrap">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Timestamp</th>
+                        <th>Machine ID</th>
+                        <th>Temp</th>
+                        <th>Current</th>
+                        <th>Vibration</th>
+                        <th>Load</th>
+                        <th>Status</th>
+                        <th>Confidence</th>
+                        <th>Alert</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in records %}
+                    <tr>
+                        <td>{{ row.id }}</td>
+                        <td>{{ row.timestamp.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+                        <td>{{ row.machine_id }}</td>
+                        <td>{{ row.temp_c }}</td>
+                        <td>{{ row.current_a }}</td>
+                        <td>{{ row.vibration_rms_g }}</td>
+                        <td>{{ row.load_level }}</td>
+                        <td>
+                            {% if row.predicted_status == 'Normal' %}
+                                <span class="status-pill status-normal">{{ row.predicted_status }}</span>
+                            {% elif row.predicted_status == 'Warning' %}
+                                <span class="status-pill status-warning">{{ row.predicted_status }}</span>
+                            {% else %}
+                                <span class="status-pill status-failure">{{ row.predicted_status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ "%.2f"|format(row.confidence * 100) }}%</td>
+                        <td>{{ "Yes" if row.alert_flag else "No" }}</td>
+                        <td>{{ row.maintenance_action }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

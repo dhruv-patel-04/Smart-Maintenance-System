@@ -4,8 +4,9 @@
 <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-3">
     <div>
         <h2 class="mb-1 fw-bold">Prediction History</h2>
-        <p class="text-secondary mb-0">Complete log of model predictions, confidence levels, and maintenance actions.</p>
+        <p class="text-secondary mb-0">Paged log of model predictions, confidence levels, and maintenance actions.</p>
     </div>
+    <div class="text-secondary small">Showing {{ start_record }}-{{ end_record }} of {{ total_records }} records</div>
 </div>
 
 <div class="panel">
@@ -55,6 +56,32 @@
                 </tbody>
             </table>
         </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+    <div class="text-secondary small">Page {{ page }} of {{ total_pages }}</div>
+    <div class="d-flex flex-wrap gap-2">
+        <a
+            class="btn btn-sm btn-outline-secondary {% if page <= 1 %}disabled{% endif %}"
+            href="{% if page > 1 %}{{ url_for('history', page=page - 1) }}{% else %}#{% endif %}"
+        >
+            Previous
+        </a>
+        {% for page_number in page_numbers %}
+        <a
+            class="btn btn-sm {% if page_number == page %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+            href="{{ url_for('history', page=page_number) }}"
+        >
+            {{ page_number }}
+        </a>
+        {% endfor %}
+        <a
+            class="btn btn-sm btn-outline-secondary {% if page >= total_pages %}disabled{% endif %}"
+            href="{% if page < total_pages %}{{ url_for('history', page=page + 1) }}{% else %}#{% endif %}"
+        >
+            Next
+        </a>
     </div>
 </div>
 {% endblock %}

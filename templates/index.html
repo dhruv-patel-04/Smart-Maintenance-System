@@ -109,7 +109,7 @@
 </div>
 
 <div class="panel mt-4">
-    <div class="panel-header">Recent Readings</div>
+    <div class="panel-header">Recent 30 Readings</div>
     <div class="panel-body">
         <div class="table-responsive table-wrap">
             <table class="table table-hover">
@@ -324,6 +324,16 @@ async function refreshDashboard() {
     }
 }
 
-setInterval(refreshDashboard, 5000);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        refreshDashboard();
+    }
+});
+
+setInterval(() => {
+    if (document.visibilityState === 'visible') {
+        refreshDashboard();
+    }
+}, 5000);
 </script>
 {% endblock %}

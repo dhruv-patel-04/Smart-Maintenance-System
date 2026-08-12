@@ -1,6 +1,13 @@
 create schema if not exists iot;
 create schema if not exists analytics;
 
+create table if not exists public.device_config (
+  device_id varchar(50) primary key,
+  calibration double precision not null,
+  turns double precision not null,
+  alpha double precision not null check (alpha >= 0 and alpha <= 1)
+);
+
 create table if not exists iot.raw_sensor_readings (
   id bigint generated always as identity primary key,
   machine_id varchar(50) not null,
@@ -40,6 +47,7 @@ create index if not exists idx_predictions_status on analytics.sensor_prediction
 grant usage on schema iot to anon, authenticated, service_role;
 grant usage on schema analytics to anon, authenticated, service_role;
 
+grant select, insert, update on public.device_config to anon, authenticated, service_role;
 grant select, insert, update on all tables in schema iot to anon, authenticated, service_role;
 grant select on all tables in schema analytics to anon, authenticated, service_role;
 grant insert on all tables in schema analytics to service_role;

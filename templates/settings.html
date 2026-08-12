@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-3">
+    <div>
+        <h2 class="mb-1 fw-bold">Device Settings</h2>
+        <p class="text-secondary mb-0">View and update the ESP32 boot-time calibration values stored in Supabase.</p>
+    </div>
+</div>
+
+{% if message %}
+<div class="alert alert-success border-0 shadow-sm">{{ message }}</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger border-0 shadow-sm">{{ error }}</div>
+{% endif %}
+
+<div class="panel mb-4">
+    <div class="panel-header">Add Or Update Configuration</div>
+    <div class="panel-body">
+        <form method="post" action="{{ url_for('save_settings') }}">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Device ID</label>
+                    <input type="text" class="form-control" name="device_id" placeholder="eq.motor_1" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Calibration</label>
+                    <input type="number" class="form-control" name="calibration" step="any" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Turns</label>
+                    <input type="number" class="form-control" name="turns" step="any" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Alpha</label>
+                    <input type="number" class="form-control" name="alpha" step="any" min="0" max="1" required>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary px-4">Save Configuration</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header">Current Device Configuration</div>
+    <div class="panel-body">
+        {% if configs %}
+        <div class="table-responsive table-wrap">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Device ID</th>
+                        <th>Calibration</th>
+                        <th>Turns</th>
+                        <th>Alpha</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in configs %}
+                    <form id="config-form-{{ loop.index }}" method="post" action="{{ url_for('save_settings') }}"></form>
+                    <form id="delete-form-{{ loop.index }}" method="post" action="{{ url_for('delete_settings') }}">
+                        <input type="hidden" name="device_id" value="{{ row.device_id }}">
+                    </form>
+                    <tr>
+                        <td>
+                            <input type="text" class="form-control" name="device_id" value="{{ row.device_id }}" form="config-form-{{ loop.index }}" readonly>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control" name="calibration" value="{{ row.calibration }}" step="any" form="config-form-{{ loop.index }}" required>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control" name="turns" value="{{ row.turns }}" step="any" form="config-form-{{ loop.index }}" required>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control" name="alpha" value="{{ row.alpha }}" step="any" min="0" max="1" form="config-form-{{ loop.index }}" required>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-sm btn-outline-primary" form="config-form-{{ loop.index }}">Update</button>
+                                <button type="submit" class="btn btn-sm btn-outline-danger" form="delete-form-{{ loop.index }}" onclick="return confirm('Delete configuration for {{ row.device_id }}?');">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="mb-0 text-secondary">No device configuration rows found in `public.device_config` yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

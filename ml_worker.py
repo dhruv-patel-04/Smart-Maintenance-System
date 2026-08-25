@@ -104,16 +104,26 @@ def fetch_unprocessed_rows(client: Client) -> list[dict]:
 
 def mark_processed(client: Client, raw_id: int) -> None:
     now_iso = datetime.now(timezone.utc).isoformat()
+
     (
         client.schema(SUPABASE_IOT_SCHEMA)
         .table("raw_sensor_readings")
-        .update({"processed": True, "processed_at": now_iso})
+        .update({
+            "processed": True,
+            "processed_at": now_iso,
+        })
         .eq("id", raw_id)
+        .eq("processed", False)
         .execute()
     )
 
 
-def insert_prediction(client: Client, row: dict, predicted_status: str, confidence: float) -> None:
+def insert_prediction(
+    client: Client,
+    row: dict,
+    predicted_status: str,
+    confidence: float,
+) -> None:
     payload = {
         "raw_reading_id": row["id"],
         "machine_id": row["machine_id"],
@@ -128,10 +138,15 @@ def insert_prediction(client: Client, row: dict, predicted_status: str, confiden
         "maintenance_action": recommend_action(predicted_status),
         "model_version": MODEL_VERSION,
     }
+
     (
         client.schema(SUPABASE_ANALYTICS_SCHEMA)
         .table("sensor_predictions")
-        .insert(payload)
+        .upsert(
+            payload,
+            on_conflict="raw_reading_id",
+            ignore_duplicates=True,
+        )
         .execute()
     )
 
@@ -167,12 +182,19 @@ def process_batch(client: Client, model, label_encoder) -> int:
 def main() -> None:
     model, label_encoder = load_model_artifacts()
     client = get_supabase_client()
+
     print("ML worker started. Watching iot.raw_sensor_readings for new rows...")
 
-    while True:
-        processed = process_batch(client, model, label_encoder)
-        if processed == 0:
+    try:
+        while True:
+            try:
+                process_batch(client, model, label_encoder)
+            except Exception as exc:
+                print(f"Worker error: {exc}")
+
             time.sleep(POLL_SECONDS)
+    except KeyboardInterrupt:
+        print("\nML worker stopped.")
 
 
 if __name__ == "__main__":

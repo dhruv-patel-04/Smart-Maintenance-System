@@ -71,20 +71,25 @@ def generate_reading() -> Dict[str, object]:
 def main() -> None:
     client = get_supabase_client()
     print("Sending sensor readings to Supabase table iot.raw_sensor_readings")
-    while True:
-        payload = generate_reading()
-        try:
-            response = (
-                client.schema(SUPABASE_IOT_SCHEMA)
-                .table("raw_sensor_readings")
-                .insert(payload)
-                .execute()
-            )
-            inserted = response.data[0] if response.data else {}
-            print("Inserted raw row id=", inserted.get("id"), "payload=", payload)
-        except Exception as exc:
-            print("Error:", exc)
-        time.sleep(2)
+
+    try:
+        while True:
+            payload = generate_reading()
+            try:
+                response = (
+                    client.schema(SUPABASE_IOT_SCHEMA)
+                    .table("raw_sensor_readings")
+                    .insert(payload)
+                    .execute()
+                )
+                inserted = response.data[0] if response.data else {}
+                print("Inserted raw row id=", inserted.get("id"), "payload=", payload)
+            except Exception as exc:
+                print("Error:", exc)
+
+            time.sleep(2)
+    except KeyboardInterrupt:
+        print("\nSensor simulator stopped.")
 
 
 if __name__ == "__main__":

@@ -492,9 +492,15 @@
 
 {% block scripts %}
 
+<script id="reportChartData" type="application/json">
+    {{ report_data.charts | tojson }}
+</script>
+
 <script>
 
-    const chartData = {{ report_data.charts | tojson }};
+    const chartData = JSON.parse(
+        document.getElementById('reportChartData').textContent
+    );
 
     function createChart(elementId, label, values, unit) {
 

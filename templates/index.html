@@ -48,11 +48,12 @@
         <div class="panel h-100">
             <div class="panel-header">Latest Machine Status</div>
             <div class="panel-body">
-                    <div id="latestContent" class="{% if not latest %}d-none{% endif %}">
+                <div id="latestContent" class="{% if not latest %}d-none{% endif %}">
                     <div class="meta-grid mb-3">
                         <div>
                             <div class="meta-label">Machine ID</div>
-                            <div class="meta-value" id="latestMachineId">{{ latest.machine_id if latest else "-" }}</div>
+                            <div class="meta-value" id="latestMachineId">{{ latest.machine_id if latest else "-" }}
+                            </div>
                         </div>
                         <div>
                             <div class="meta-label">Timestamp</div>
@@ -60,15 +61,18 @@
                         </div>
                         <div>
                             <div class="meta-label">Temperature</div>
-                            <div class="meta-value" id="latestTemp">{{ latest.temp_c if latest else "-" }}{% if latest %} °C{% endif %}</div>
+                            <div class="meta-value" id="latestTemp">{{ latest.temp_c if latest else "-" }}{% if latest
+                                %} °C{% endif %}</div>
                         </div>
                         <div>
                             <div class="meta-label">Current</div>
-                            <div class="meta-value" id="latestCurrent">{{ latest.current_a if latest else "-" }}{% if latest %} A{% endif %}</div>
+                            <div class="meta-value" id="latestCurrent">{{ latest.current_a if latest else "-" }}{% if
+                                latest %} A{% endif %}</div>
                         </div>
                         <div>
                             <div class="meta-label">Vibration</div>
-                            <div class="meta-value" id="latestVibration">{{ latest.vibration_rms_g if latest else "-" }}{% if latest %} g{% endif %}</div>
+                            <div class="meta-value" id="latestVibration">{{ latest.vibration_rms_g if latest else "-"
+                                }}{% if latest %} g{% endif %}</div>
                         </div>
                         <div>
                             <div class="meta-label">Load Level</div>
@@ -77,21 +81,23 @@
                     </div>
                     <div class="mb-2">
                         <div class="meta-label">Status</div>
-                        <span
-                            id="latestStatus"
-                            class="status-pill {% if latest and latest.predicted_status == 'Normal' %}status-normal{% elif latest and latest.predicted_status == 'Warning' %}status-warning{% else %}status-failure{% endif %}"
-                        >{{ latest.predicted_status if latest else "-" }}</span>
+                        <span id="latestStatus"
+                            class="status-pill {% if latest and latest.predicted_status == 'Normal' %}status-normal{% elif latest and latest.predicted_status == 'Warning' %}status-warning{% else %}status-failure{% endif %}">{{
+                            latest.predicted_status if latest else "-" }}</span>
                     </div>
                     <div class="mb-2">
                         <div class="meta-label">Confidence</div>
-                        <div class="meta-value" id="latestConfidence">{{ "%.2f"|format(latest.confidence * 100) if latest else "-" }}{% if latest %}%{% endif %}</div>
+                        <div class="meta-value" id="latestConfidence">{{ "%.2f"|format(latest.confidence * 100) if
+                            latest else "-" }}{% if latest %}%{% endif %}</div>
                     </div>
                     <div>
                         <div class="meta-label">Recommended Action</div>
-                        <div class="meta-value" id="latestAction">{{ latest.maintenance_action if latest else "-" }}</div>
+                        <div class="meta-value" id="latestAction">{{ latest.maintenance_action if latest else "-" }}
+                        </div>
                     </div>
-                    </div>
-                    <p class="mb-0 {% if latest %}d-none{% endif %}" id="latestEmptyState">No readings yet. Use <a class="soft-link" href="/seed-demo">Seed Demo Data</a> or the API to add data.</p>
+                </div>
+                <p class="mb-0 {% if latest %}d-none{% endif %}" id="latestEmptyState">No readings yet. Use <a
+                        class="soft-link" href="/seed-demo">Seed Demo Data</a> or the API to add data.</p>
             </div>
         </div>
     </div>
@@ -136,11 +142,11 @@
                         <td>{{ row.load_level }}</td>
                         <td>
                             {% if row.predicted_status == 'Normal' %}
-                                <span class="status-pill status-normal">{{ row.predicted_status }}</span>
+                            <span class="status-pill status-normal">{{ row.predicted_status }}</span>
                             {% elif row.predicted_status == 'Warning' %}
-                                <span class="status-pill status-warning">{{ row.predicted_status }}</span>
+                            <span class="status-pill status-warning">{{ row.predicted_status }}</span>
                             {% else %}
-                                <span class="status-pill status-failure">{{ row.predicted_status }}</span>
+                            <span class="status-pill status-failure">{{ row.predicted_status }}</span>
                             {% endif %}
                         </td>
                         <td>{{ "%.2f"|format(row.confidence * 100) }}%</td>
@@ -154,129 +160,136 @@
 {% endblock %}
 
 {% block scripts %}
+<script id="dashboardChartData" type="application/json">
+{{ chart_data | tojson }}
+</script>
+
 <script>
-const chartData = {{ chart_data | tojson }};
-const ctx = document.getElementById('trendChart');
+    const chartData = JSON.parse(
+        document.getElementById('dashboardChartData').textContent
+    );
 
-function statusClassFromLabel(label) {
-    if (label === 'Normal') {
-        return 'status-pill status-normal';
-    }
-    if (label === 'Warning') {
-        return 'status-pill status-warning';
-    }
-    return 'status-pill status-failure';
-}
+    const ctx = document.getElementById('trendChart');
 
-function formatNumber(value) {
-    if (typeof value === 'number') {
-        return value.toFixed(2).replace(/\.00$/, '');
+    function statusClassFromLabel(label) {
+        if (label === 'Normal') {
+            return 'status-pill status-normal';
+        }
+        if (label === 'Warning') {
+            return 'status-pill status-warning';
+        }
+        return 'status-pill status-failure';
     }
-    return value;
-}
 
-const trendChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: chartData.labels,
-        datasets: [
-            {
-                label: 'Temperature (°C)',
-                data: chartData.temp,
-                borderColor: '#0f8a83',
-                backgroundColor: 'rgba(15, 138, 131, 0.12)',
-                borderWidth: 2,
-                tension: 0.32,
-                pointRadius: 1.8
-            },
-            {
-                label: 'Current (A)',
-                data: chartData.current,
-                borderColor: '#2b6cb0',
-                backgroundColor: 'rgba(43, 108, 176, 0.1)',
-                borderWidth: 2,
-                tension: 0.32,
-                pointRadius: 1.8
-            },
-            {
-                label: 'Vibration (g)',
-                data: chartData.vibration,
-                borderColor: '#c08112',
-                backgroundColor: 'rgba(192, 129, 18, 0.12)',
-                borderWidth: 2,
-                tension: 0.32,
-                pointRadius: 1.8
-            }
-        ]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'top',
-                labels: {
-                    boxWidth: 14,
-                    usePointStyle: true,
-                    pointStyle: 'line'
+    function formatNumber(value) {
+        if (typeof value === 'number') {
+            return value.toFixed(2).replace(/\.00$/, '');
+        }
+        return value;
+    }
+
+    const trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: [
+                {
+                    label: 'Temperature (°C)',
+                    data: chartData.temp,
+                    borderColor: '#0f8a83',
+                    backgroundColor: 'rgba(15, 138, 131, 0.12)',
+                    borderWidth: 2,
+                    tension: 0.32,
+                    pointRadius: 1.8
+                },
+                {
+                    label: 'Current (A)',
+                    data: chartData.current,
+                    borderColor: '#2b6cb0',
+                    backgroundColor: 'rgba(43, 108, 176, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.32,
+                    pointRadius: 1.8
+                },
+                {
+                    label: 'Vibration (g)',
+                    data: chartData.vibration,
+                    borderColor: '#c08112',
+                    backgroundColor: 'rgba(192, 129, 18, 0.12)',
+                    borderWidth: 2,
+                    tension: 0.32,
+                    pointRadius: 1.8
                 }
-            }
+            ]
         },
-        scales: {
-            x: {
-                grid: {
-                    color: 'rgba(66, 84, 102, 0.08)'
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        boxWidth: 14,
+                        usePointStyle: true,
+                        pointStyle: 'line'
+                    }
                 }
             },
-            y: {
-                grid: {
-                    color: 'rgba(66, 84, 102, 0.08)'
+            scales: {
+                x: {
+                    grid: {
+                        color: 'rgba(66, 84, 102, 0.08)'
+                    }
+                },
+                y: {
+                    grid: {
+                        color: 'rgba(66, 84, 102, 0.08)'
+                    }
                 }
             }
         }
-    }
-});
+    });
 
-function updateLatestCard(latest) {
-    const latestContent = document.getElementById('latestContent');
-    const latestEmptyState = document.getElementById('latestEmptyState');
-    if (!latest || !latestContent) {
+    function updateLatestCard(latest) {
+        const latestContent = document.getElementById('latestContent');
+        const latestEmptyState = document.getElementById('latestEmptyState');
+        if (!latest || !latestContent) {
+            if (latestEmptyState) {
+                latestEmptyState.classList.remove('d-none');
+            }
+            if (latestContent) {
+                latestContent.classList.add('d-none');
+            }
+            return;
+        }
+
         if (latestEmptyState) {
-            latestEmptyState.classList.remove('d-none');
+            latestEmptyState.classList.add('d-none');
         }
-        if (latestContent) {
-            latestContent.classList.add('d-none');
+        latestContent.classList.remove('d-none');
+
+        document.getElementById('latestMachineId').textContent = latest.machine_id;
+        document.getElementById('latestTimestamp').textContent = latest.timestamp;
+        document.getElementById('latestTemp').textContent = `${formatNumber(latest.temp_c)} °C`;
+        document.getElementById('latestCurrent').textContent = `${formatNumber(latest.current_a)} A`;
+        document.getElementById('latestVibration').textContent = `${formatNumber(latest.vibration_rms_g)} g`;
+        document.getElementById('latestLoad').textContent = latest.load_level;
+
+        const latestStatus = document.getElementById('latestStatus');
+        latestStatus.textContent = latest.predicted_status;
+        latestStatus.className = statusClassFromLabel(latest.predicted_status);
+
+        document.getElementById('latestConfidence').textContent = `${(latest.confidence * 100).toFixed(2)}%`;
+        document.getElementById('latestAction').textContent = latest.maintenance_action;
+    }
+
+    function updateRecentTable(rows) {
+        const tbody = document.getElementById('recentTableBody');
+        if (!tbody) {
+            return;
         }
-        return;
-    }
 
-    if (latestEmptyState) {
-        latestEmptyState.classList.add('d-none');
-    }
-    latestContent.classList.remove('d-none');
-
-    document.getElementById('latestMachineId').textContent = latest.machine_id;
-    document.getElementById('latestTimestamp').textContent = latest.timestamp;
-    document.getElementById('latestTemp').textContent = `${formatNumber(latest.temp_c)} °C`;
-    document.getElementById('latestCurrent').textContent = `${formatNumber(latest.current_a)} A`;
-    document.getElementById('latestVibration').textContent = `${formatNumber(latest.vibration_rms_g)} g`;
-    document.getElementById('latestLoad').textContent = latest.load_level;
-
-    const latestStatus = document.getElementById('latestStatus');
-    latestStatus.textContent = latest.predicted_status;
-    latestStatus.className = statusClassFromLabel(latest.predicted_status);
-
-    document.getElementById('latestConfidence').textContent = `${(latest.confidence * 100).toFixed(2)}%`;
-    document.getElementById('latestAction').textContent = latest.maintenance_action;
-}
-
-function updateRecentTable(rows) {
-    const tbody = document.getElementById('recentTableBody');
-    if (!tbody) {
-        return;
-    }
-
-    tbody.innerHTML = rows.map((row) => `
+        tbody.innerHTML = rows.map((row) => `
         <tr>
             <td>${row.timestamp}</td>
             <td>${row.machine_id}</td>
@@ -288,52 +301,52 @@ function updateRecentTable(rows) {
             <td>${(row.confidence * 100).toFixed(2)}%</td>
         </tr>
     `).join('');
-}
+    }
 
-function updateMetrics(counts) {
-    document.getElementById('metricTotal').textContent = counts.total;
-    document.getElementById('metricNormal').textContent = counts.normal_count;
-    document.getElementById('metricWarning').textContent = counts.warning_count;
-    document.getElementById('metricFailure').textContent = counts.failure_count;
-}
+    function updateMetrics(counts) {
+        document.getElementById('metricTotal').textContent = counts.total;
+        document.getElementById('metricNormal').textContent = counts.normal_count;
+        document.getElementById('metricWarning').textContent = counts.warning_count;
+        document.getElementById('metricFailure').textContent = counts.failure_count;
+    }
 
-function updateChart(nextChartData) {
-    trendChart.data.labels = nextChartData.labels;
-    trendChart.data.datasets[0].data = nextChartData.temp;
-    trendChart.data.datasets[1].data = nextChartData.current;
-    trendChart.data.datasets[2].data = nextChartData.vibration;
-    trendChart.update('none');
-}
+    function updateChart(nextChartData) {
+        trendChart.data.labels = nextChartData.labels;
+        trendChart.data.datasets[0].data = nextChartData.temp;
+        trendChart.data.datasets[1].data = nextChartData.current;
+        trendChart.data.datasets[2].data = nextChartData.vibration;
+        trendChart.update('none');
+    }
 
-async function refreshDashboard() {
-    try {
-        const response = await fetch('/api/dashboard-data', {
-            headers: { 'Cache-Control': 'no-cache' }
-        });
-        if (!response.ok) {
-            return;
+    async function refreshDashboard() {
+        try {
+            const response = await fetch('/api/dashboard-data', {
+                headers: { 'Cache-Control': 'no-cache' }
+            });
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = await response.json();
+            updateMetrics(payload.counts);
+            updateLatestCard(payload.latest);
+            updateRecentTable(payload.recent);
+            updateChart(payload.chart_data);
+        } catch (error) {
+            console.warn('Dashboard live update failed:', error);
         }
-
-        const payload = await response.json();
-        updateMetrics(payload.counts);
-        updateLatestCard(payload.latest);
-        updateRecentTable(payload.recent);
-        updateChart(payload.chart_data);
-    } catch (error) {
-        console.warn('Dashboard live update failed:', error);
     }
-}
 
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        refreshDashboard();
-    }
-});
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            refreshDashboard();
+        }
+    });
 
-setInterval(() => {
-    if (document.visibilityState === 'visible') {
-        refreshDashboard();
-    }
-}, 5000);
+    setInterval(() => {
+        if (document.visibilityState === 'visible') {
+            refreshDashboard();
+        }
+    }, 5000);
 </script>
 {% endblock %}

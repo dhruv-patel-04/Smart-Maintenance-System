@@ -4,7 +4,8 @@
 <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-3">
     <div>
         <h2 class="mb-1 fw-bold">Interactive Charts</h2>
-        <p class="text-secondary mb-0">Explore sensor trends by parameter, combined overlay, or grouped charts with zoom and pan controls.</p>
+        <p class="text-secondary mb-0">Explore sensor trends by parameter, combined overlay, or grouped charts with zoom
+            and pan controls.</p>
     </div>
 </div>
 
@@ -26,7 +27,8 @@
                 <label for="chartRange" class="form-label fw-semibold">Time Range</label>
                 <select id="chartRange" class="form-select">
                     {% for option in chart_payload.range_options %}
-                    <option value="{{ option.value }}" {% if option.value == chart_payload.range %}selected{% endif %}>{{ option.label }}</option>
+                    <option value="{{ option.value }}" {% if option.value==chart_payload.range %}selected{% endif %}>{{
+                        option.label }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -35,7 +37,8 @@
                 <button type="button" id="resetZoomBtn" class="btn btn-outline-primary">Reset Zoom</button>
             </div>
         </div>
-        <p class="text-secondary small mt-3 mb-0">Use mouse wheel to zoom, drag to pan, and switch modes without reloading the page.</p>
+        <p class="text-secondary small mt-3 mb-0">Use mouse wheel to zoom, drag to pan, and switch modes without
+            reloading the page.</p>
     </div>
 </div>
 
@@ -93,212 +96,219 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script id="chartPayloadData" type="application/json">
+{{ chart_payload | tojson }}
+</script>
+
 <script>
-const initialChartPayload = {{ chart_payload | tojson }};
-const chartModeSelect = document.getElementById('chartMode');
-const chartRangeSelect = document.getElementById('chartRange');
-const resetZoomBtn = document.getElementById('resetZoomBtn');
+    const initialChartPayload = JSON.parse(
+        document.getElementById('chartPayloadData').textContent
+    );
 
-const combinedView = document.getElementById('combinedView');
-const singleView = document.getElementById('singleView');
-const groupView = document.getElementById('groupView');
-const singleChartTitle = document.getElementById('singleChartTitle');
+    const chartModeSelect = document.getElementById('chartMode');
+    const chartRangeSelect = document.getElementById('chartRange');
+    const resetZoomBtn = document.getElementById('resetZoomBtn');
 
-let chartPayload = initialChartPayload;
-let combinedChart;
-let singleChart;
-let groupCharts = [];
+    const combinedView = document.getElementById('combinedView');
+    const singleView = document.getElementById('singleView');
+    const groupView = document.getElementById('groupView');
+    const singleChartTitle = document.getElementById('singleChartTitle');
 
-const seriesConfig = {
-    temperature: {
-        label: 'Temperature (C)',
-        key: 'temp',
-        color: '#0f8a83',
-        bg: 'rgba(15, 138, 131, 0.12)'
-    },
-    current: {
-        label: 'Current (A)',
-        key: 'current',
-        color: '#2b6cb0',
-        bg: 'rgba(43, 108, 176, 0.12)'
-    },
-    vibration: {
-        label: 'Vibration (g)',
-        key: 'vibration',
-        color: '#c08112',
-        bg: 'rgba(192, 129, 18, 0.14)'
-    }
-};
+    let chartPayload = initialChartPayload;
+    let combinedChart;
+    let singleChart;
+    let groupCharts = [];
 
-function baseOptions() {
-    return {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-            mode: 'index',
-            intersect: false
+    const seriesConfig = {
+        temperature: {
+            label: 'Temperature (C)',
+            key: 'temp',
+            color: '#0f8a83',
+            bg: 'rgba(15, 138, 131, 0.12)'
         },
-        plugins: {
-            legend: {
-                position: 'top'
+        current: {
+            label: 'Current (A)',
+            key: 'current',
+            color: '#2b6cb0',
+            bg: 'rgba(43, 108, 176, 0.12)'
+        },
+        vibration: {
+            label: 'Vibration (g)',
+            key: 'vibration',
+            color: '#c08112',
+            bg: 'rgba(192, 129, 18, 0.14)'
+        }
+    };
+
+    function baseOptions() {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
             },
-            zoom: {
-                pan: {
-                    enabled: true,
-                    mode: 'x'
+            plugins: {
+                legend: {
+                    position: 'top'
                 },
                 zoom: {
-                    wheel: {
-                        enabled: true
+                    pan: {
+                        enabled: true,
+                        mode: 'x'
                     },
-                    pinch: {
-                        enabled: true
-                    },
-                    drag: {
-                        enabled: true
-                    },
-                    mode: 'x'
-                }
-            }
-        },
-        scales: {
-            x: {
-                grid: {
-                    color: 'rgba(66, 84, 102, 0.08)'
+                    zoom: {
+                        wheel: {
+                            enabled: true
+                        },
+                        pinch: {
+                            enabled: true
+                        },
+                        drag: {
+                            enabled: true
+                        },
+                        mode: 'x'
+                    }
                 }
             },
-            y: {
-                grid: {
-                    color: 'rgba(66, 84, 102, 0.08)'
+            scales: {
+                x: {
+                    grid: {
+                        color: 'rgba(66, 84, 102, 0.08)'
+                    }
+                },
+                y: {
+                    grid: {
+                        color: 'rgba(66, 84, 102, 0.08)'
+                    }
                 }
             }
+        };
+    }
+
+    function destroyCharts() {
+        if (combinedChart) {
+            combinedChart.destroy();
+            combinedChart = null;
         }
-    };
-}
-
-function destroyCharts() {
-    if (combinedChart) {
-        combinedChart.destroy();
-        combinedChart = null;
-    }
-    if (singleChart) {
-        singleChart.destroy();
-        singleChart = null;
-    }
-    groupCharts.forEach((chart) => chart.destroy());
-    groupCharts = [];
-}
-
-function buildDataset(config) {
-    return {
-        label: config.label,
-        data: chartPayload[config.key],
-        borderColor: config.color,
-        backgroundColor: config.bg,
-        borderWidth: 2,
-        tension: 0.28,
-        pointRadius: 1.5,
-        fill: false
-    };
-}
-
-function renderCombinedChart() {
-    combinedChart = new Chart(document.getElementById('combinedChart'), {
-        type: 'line',
-        data: {
-            labels: chartPayload.labels,
-            datasets: [
-                buildDataset(seriesConfig.temperature),
-                buildDataset(seriesConfig.current),
-                buildDataset(seriesConfig.vibration)
-            ]
-        },
-        options: baseOptions()
-    });
-}
-
-function renderSingleChart(mode) {
-    const config = seriesConfig[mode];
-    singleChartTitle.textContent = `${config.label} Trend`;
-    singleChart = new Chart(document.getElementById('singleChart'), {
-        type: 'line',
-        data: {
-            labels: chartPayload.labels,
-            datasets: [buildDataset(config)]
-        },
-        options: baseOptions()
-    });
-}
-
-function renderGroupCharts() {
-    groupCharts = [
-        new Chart(document.getElementById('groupTempChart'), {
-            type: 'line',
-            data: { labels: chartPayload.labels, datasets: [buildDataset(seriesConfig.temperature)] },
-            options: baseOptions()
-        }),
-        new Chart(document.getElementById('groupCurrentChart'), {
-            type: 'line',
-            data: { labels: chartPayload.labels, datasets: [buildDataset(seriesConfig.current)] },
-            options: baseOptions()
-        }),
-        new Chart(document.getElementById('groupVibrationChart'), {
-            type: 'line',
-            data: { labels: chartPayload.labels, datasets: [buildDataset(seriesConfig.vibration)] },
-            options: baseOptions()
-        })
-    ];
-}
-
-function showMode(mode) {
-    combinedView.classList.toggle('d-none', mode !== 'combined');
-    singleView.classList.toggle('d-none', !['temperature', 'current', 'vibration'].includes(mode));
-    groupView.classList.toggle('d-none', mode !== 'group');
-
-    destroyCharts();
-
-    if (mode === 'combined') {
-        renderCombinedChart();
-        return;
-    }
-    if (mode === 'group') {
-        renderGroupCharts();
-        return;
-    }
-    renderSingleChart(mode);
-}
-
-function resetZoomOnVisibleCharts() {
-    [combinedChart, singleChart, ...groupCharts].forEach((chart) => {
-        if (chart && typeof chart.resetZoom === 'function') {
-            chart.resetZoom();
+        if (singleChart) {
+            singleChart.destroy();
+            singleChart = null;
         }
-    });
-}
-
-async function refreshChartData() {
-    const response = await fetch(`/api/chart-data?range=${encodeURIComponent(chartRangeSelect.value)}`, {
-        headers: { 'Cache-Control': 'no-cache' }
-    });
-    if (!response.ok) {
-        return;
+        groupCharts.forEach((chart) => chart.destroy());
+        groupCharts = [];
     }
-    chartPayload = await response.json();
-    showMode(chartModeSelect.value);
-}
 
-chartModeSelect.addEventListener('change', () => {
-    showMode(chartModeSelect.value);
-});
+    function buildDataset(config) {
+        return {
+            label: config.label,
+            data: chartPayload[config.key],
+            borderColor: config.color,
+            backgroundColor: config.bg,
+            borderWidth: 2,
+            tension: 0.28,
+            pointRadius: 1.5,
+            fill: false
+        };
+    }
 
-chartRangeSelect.addEventListener('change', async () => {
-    await refreshChartData();
-});
+    function renderCombinedChart() {
+        combinedChart = new Chart(document.getElementById('combinedChart'), {
+            type: 'line',
+            data: {
+                labels: chartPayload.labels,
+                datasets: [
+                    buildDataset(seriesConfig.temperature),
+                    buildDataset(seriesConfig.current),
+                    buildDataset(seriesConfig.vibration)
+                ]
+            },
+            options: baseOptions()
+        });
+    }
 
-resetZoomBtn.addEventListener('click', () => {
-    resetZoomOnVisibleCharts();
-});
+    function renderSingleChart(mode) {
+        const config = seriesConfig[mode];
+        singleChartTitle.textContent = `${config.label} Trend`;
+        singleChart = new Chart(document.getElementById('singleChart'), {
+            type: 'line',
+            data: {
+                labels: chartPayload.labels,
+                datasets: [buildDataset(config)]
+            },
+            options: baseOptions()
+        });
+    }
 
-showMode('combined');
+    function renderGroupCharts() {
+        groupCharts = [
+            new Chart(document.getElementById('groupTempChart'), {
+                type: 'line',
+                data: { labels: chartPayload.labels, datasets: [buildDataset(seriesConfig.temperature)] },
+                options: baseOptions()
+            }),
+            new Chart(document.getElementById('groupCurrentChart'), {
+                type: 'line',
+                data: { labels: chartPayload.labels, datasets: [buildDataset(seriesConfig.current)] },
+                options: baseOptions()
+            }),
+            new Chart(document.getElementById('groupVibrationChart'), {
+                type: 'line',
+                data: { labels: chartPayload.labels, datasets: [buildDataset(seriesConfig.vibration)] },
+                options: baseOptions()
+            })
+        ];
+    }
+
+    function showMode(mode) {
+        combinedView.classList.toggle('d-none', mode !== 'combined');
+        singleView.classList.toggle('d-none', !['temperature', 'current', 'vibration'].includes(mode));
+        groupView.classList.toggle('d-none', mode !== 'group');
+
+        destroyCharts();
+
+        if (mode === 'combined') {
+            renderCombinedChart();
+            return;
+        }
+        if (mode === 'group') {
+            renderGroupCharts();
+            return;
+        }
+        renderSingleChart(mode);
+    }
+
+    function resetZoomOnVisibleCharts() {
+        [combinedChart, singleChart, ...groupCharts].forEach((chart) => {
+            if (chart && typeof chart.resetZoom === 'function') {
+                chart.resetZoom();
+            }
+        });
+    }
+
+    async function refreshChartData() {
+        const response = await fetch(`/api/chart-data?range=${encodeURIComponent(chartRangeSelect.value)}`, {
+            headers: { 'Cache-Control': 'no-cache' }
+        });
+        if (!response.ok) {
+            return;
+        }
+        chartPayload = await response.json();
+        showMode(chartModeSelect.value);
+    }
+
+    chartModeSelect.addEventListener('change', () => {
+        showMode(chartModeSelect.value);
+    });
+
+    chartRangeSelect.addEventListener('change', async () => {
+        await refreshChartData();
+    });
+
+    resetZoomBtn.addEventListener('click', () => {
+        resetZoomOnVisibleCharts();
+    });
+
+    showMode('combined');
 </script>
 {% endblock %}

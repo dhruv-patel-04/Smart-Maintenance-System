@@ -1,11 +1,23 @@
+import io
 import os
-from datetime import datetime
+from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 from types import SimpleNamespace
 
 import joblib
 import pandas as pd
 from dotenv import load_dotenv
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Flask,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+    send_file,
+    flash,
+)
+from report_generator import build_report_data, generate_pdf
 from supabase import Client, create_client
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +35,8 @@ SUPABASE_KEY = (
 ).strip().strip('"').strip("'")
 SUPABASE_PUBLIC_SCHEMA = os.getenv("SUPABASE_PUBLIC_SCHEMA", "public")
 SUPABASE_ANALYTICS_SCHEMA = os.getenv("SUPABASE_ANALYTICS_SCHEMA", "analytics")
+REPORT_TYPE_PERFORMANCE = "performance"
+REPORT_STORAGE_BUCKET = "maintenance-reports"
 CHART_RANGE_OPTIONS = {
     "1h": ("Last 1 Hour", 60),
     "6h": ("Last 6 Hours", 6 * 60),
@@ -298,6 +312,247 @@ def predict_status(temp_c: float, current_a: float, vibration_rms_g: float, load
     return pred_label, confidence
 
 
+def get_report_machines() -> list[str]:
+    """
+    Return machines that have prediction data.
+    """
+    client = get_supabase_client()
+
+    response = (
+        client.schema(SUPABASE_ANALYTICS_SCHEMA)
+        .table("sensor_predictions")
+        .select("machine_id")
+        .order("machine_id")
+        .execute()
+    )
+
+    machines = sorted(
+        {
+            str(row.get("machine_id"))
+            for row in (response.data or [])
+            if row.get("machine_id")
+        }
+    )
+
+    return machines
+
+
+def fetch_existing_report(
+    machine_id: str,
+    period_start: date,
+    period_end: date,
+) -> dict | None:
+    client = get_supabase_client()
+
+    response = (
+        client.schema(SUPABASE_ANALYTICS_SCHEMA)
+        .table("generated_reports")
+        .select("*")
+        .eq("machine_id", machine_id)
+        .eq("report_type", REPORT_TYPE_PERFORMANCE)
+        .eq("period_start", period_start.isoformat())
+        .eq("period_end", period_end.isoformat())
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+
+    rows = response.data or []
+
+    return rows[0] if rows else None
+
+
+def fetch_report_prediction_rows(
+    machine_id: str,
+    period_start: date,
+    period_end: date,
+) -> list[dict]:
+    client = get_supabase_client()
+
+    start_iso = f"{period_start.isoformat()}T00:00:00"
+    end_exclusive = period_end + timedelta(days=1)
+    end_iso = f"{end_exclusive.isoformat()}T00:00:00"
+
+    response = (
+        client.schema(SUPABASE_ANALYTICS_SCHEMA)
+        .table("sensor_predictions")
+        .select(
+            "event_ts,temp_c,current_a,vibration_rms_g,"
+            "predicted_status,confidence"
+        )
+        .eq("machine_id", machine_id)
+        .gte("event_ts", start_iso)
+        .lt("event_ts", end_iso)
+        .order("event_ts", desc=False)
+        .execute()
+    )
+
+    return response.data or []
+
+
+def save_generated_report(
+    machine_id: str,
+    period_start: date,
+    period_end: date,
+    report_data: dict,
+    file_path: str,
+) -> dict:
+    client = get_supabase_client()
+
+    payload = {
+        "machine_id": machine_id,
+        "report_type": REPORT_TYPE_PERFORMANCE,
+        "period_start": period_start.isoformat(),
+        "period_end": period_end.isoformat(),
+
+        "generated_at": datetime.now().isoformat(),
+
+        "total_readings": report_data["total_readings"],
+
+        "normal_count": report_data["status_counts"]["normal"],
+        "warning_count": report_data["status_counts"]["warning"],
+        "failure_count": report_data["status_counts"]["failure"],
+
+        "normal_percentage": report_data["status_percentages"]["normal"],
+        "warning_percentage": report_data["status_percentages"]["warning"],
+        "failure_percentage": report_data["status_percentages"]["failure"],
+
+        "temperature_avg": report_data["temperature"]["average"],
+        "temperature_min": report_data["temperature"]["minimum"],
+        "temperature_max": report_data["temperature"]["maximum"],
+
+        "current_avg": report_data["current"]["average"],
+        "current_min": report_data["current"]["minimum"],
+        "current_max": report_data["current"]["maximum"],
+
+        "vibration_avg": report_data["vibration"]["average"],
+        "vibration_min": report_data["vibration"]["minimum"],
+        "vibration_max": report_data["vibration"]["maximum"],
+
+        "overall_status": report_data["overall_status"],
+        "summary": report_data["summary"],
+
+        "report_data": report_data,
+
+        "file_path": file_path,
+    }
+
+    response = (
+        client.schema(SUPABASE_ANALYTICS_SCHEMA)
+        .table("generated_reports")
+        .insert(payload)
+        .execute()
+    )
+
+    rows = response.data or []
+
+    if not rows:
+        raise RuntimeError("Report was not saved to Supabase.")
+
+    return rows[0]
+
+
+def create_report(
+    machine_id: str,
+    period_start: date,
+    period_end: date,
+) -> dict:
+    rows = fetch_report_prediction_rows(
+        machine_id,
+        period_start,
+        period_end,
+    )
+
+    if not rows:
+        raise RuntimeError(
+            "No prediction data was found for the selected machine and period."
+        )
+
+    report_data = build_report_data(
+        rows,
+        machine_id,
+        period_start,
+        period_end,
+    )
+
+    pdf_bytes = generate_pdf(report_data)
+
+    file_path = upload_report_pdf(
+        machine_id,
+        period_start,
+        period_end,
+        pdf_bytes,
+    )
+
+    return {
+        "report_data": report_data,
+        "file_path": file_path,
+    }
+
+
+def upload_report_pdf(
+    machine_id: str,
+    period_start: date,
+    period_end: date,
+    pdf_bytes: bytes,
+) -> str:
+    client = get_supabase_client()
+
+    safe_machine_id = "".join(
+        character
+        if character.isalnum() or character in "-_"
+        else "_"
+        for character in machine_id
+    )
+
+    generated_timestamp = datetime.now(ZoneInfo("Asia/Kolkata")).strftime(
+        "%Y-%m-%d_%H-%M-%S"
+    )
+
+    file_path = (
+        f"{safe_machine_id}/"
+        f"{period_start.isoformat()}_"
+        f"{period_end.isoformat()}_"
+        f"generated_{generated_timestamp}.pdf"
+    )
+
+    client.storage.from_(REPORT_STORAGE_BUCKET).upload(
+        file_path,
+        pdf_bytes,
+        {
+            "content-type": "application/pdf",
+            "upsert": "false",
+        },
+    )
+
+    return file_path
+
+
+def fetch_generated_reports(machine_id: str | None = None) -> list[dict]:
+    client = get_supabase_client()
+
+    query = (
+        client.schema(SUPABASE_ANALYTICS_SCHEMA)
+        .table("generated_reports")
+        .select(
+            "id,machine_id,report_type,period_start,period_end,"
+            "generated_at,overall_status,total_readings,file_path"
+        )
+        .eq("report_type", REPORT_TYPE_PERFORMANCE)
+        .order("period_start", desc=True)
+    )
+
+    if machine_id:
+        query = query.eq("machine_id", machine_id)
+
+    response = query.execute()
+
+    return response.data or []
+
+
+
+
+
 @app.route("/")
 def dashboard():
     payload = to_dashboard_payload()
@@ -367,6 +622,452 @@ def charts():
         "charts.html",
         chart_payload=chart_payload,
     )
+
+
+@app.route("/reports")
+def reports():
+    machine_id = request.args.get("machine_id", "").strip()
+
+    machines = get_report_machines()
+
+    selected_machine = machine_id if machine_id in machines else (
+        machines[0] if machines else ""
+    )
+
+    generated_reports = fetch_generated_reports(
+        selected_machine if selected_machine else None
+    )
+
+    return render_template(
+        "reports.html",
+        machines=machines,
+        selected_machine=selected_machine,
+        generated_reports=generated_reports,
+        today=date.today().isoformat(),
+    )
+
+
+@app.route("/reports/generate", methods=["POST"])
+def generate_report():
+    machine_id = request.form.get("machine_id", "").strip()
+    start_value = request.form.get("period_start", "").strip()
+    end_value = request.form.get("period_end", "").strip()
+
+    if not machine_id or not start_value or not end_value:
+        return redirect(
+            url_for(
+                "reports",
+                machine_id=machine_id,
+            )
+        )
+
+    try:
+        period_start = date.fromisoformat(start_value)
+        period_end = date.fromisoformat(end_value)
+    except ValueError:
+        return redirect(
+            url_for(
+                "reports",
+                machine_id=machine_id,
+                error="Invalid date range.",
+            )
+        )
+
+    if period_end < period_start:
+        return redirect(
+            url_for(
+                "reports",
+                machine_id=machine_id,
+                error="End date must be on or after start date.",
+            )
+        )
+
+    try:
+        # -----------------------------------------
+        # 1. Check if report already exists
+        # -----------------------------------------
+        existing_report = fetch_existing_report(
+            machine_id,
+            period_start,
+            period_end,
+        )
+
+        if existing_report:
+            return render_template(
+                "report_exists.html",
+                existing_report=existing_report,
+                machine_id=machine_id,
+                period_start=period_start,
+                period_end=period_end,
+            )
+
+        # -----------------------------------------
+        # 2. Fetch prediction data
+        # -----------------------------------------
+        rows = fetch_report_prediction_rows(
+            machine_id,
+            period_start,
+            period_end,
+        )
+
+        if not rows:
+            return redirect(
+                url_for(
+                    "reports",
+                    machine_id=machine_id,
+                    error=(
+                        "No prediction data was found for the selected "
+                        "machine and period."
+                    ),
+                )
+            )
+
+        # -----------------------------------------
+        # 3. Build structured report
+        # -----------------------------------------
+        report_data = build_report_data(
+            rows,
+            machine_id,
+            period_start,
+            period_end,
+        )
+
+        # -----------------------------------------
+        # 4. Generate PDF
+        # -----------------------------------------
+        pdf_bytes = generate_pdf(report_data)
+
+        # -----------------------------------------
+        # 5. Upload PDF
+        # -----------------------------------------
+        file_path = upload_report_pdf(
+            machine_id,
+            period_start,
+            period_end,
+            pdf_bytes,
+        )
+
+        # -----------------------------------------
+        # 6. Save metadata + structured data
+        # -----------------------------------------
+        saved_report = save_generated_report(
+            machine_id,
+            period_start,
+            period_end,
+            report_data,
+            file_path,
+        )
+
+        return redirect(
+            url_for(
+                "report_preview",
+                report_id=saved_report["id"],
+            )
+        )
+
+    except Exception as exc:
+        app.logger.exception("Report generation failed")
+
+        return redirect(
+            url_for(
+                "reports",
+                machine_id=machine_id,
+                error=f"Failed to generate report: {exc}",
+            )
+        )
+
+
+@app.route("/reports/generate-new", methods=["POST"])
+def generate_new_report():
+    machine_id = request.form.get("machine_id", "").strip()
+    start_value = request.form.get("period_start", "").strip()
+    end_value = request.form.get("period_end", "").strip()
+
+    try:
+        period_start = date.fromisoformat(start_value)
+        period_end = date.fromisoformat(end_value)
+    except ValueError:
+        return redirect(
+            url_for(
+                "reports",
+                machine_id=machine_id,
+                error="Invalid date range.",
+            )
+        )
+
+    if period_end < period_start:
+        return redirect(
+            url_for(
+                "reports",
+                machine_id=machine_id,
+                error="End date must be on or after start date.",
+            )
+        )
+
+    try:
+        result = create_report(
+            machine_id,
+            period_start,
+            period_end,
+        )
+
+        saved_report = save_generated_report(
+            machine_id,
+            period_start,
+            period_end,
+            result["report_data"],
+            result["file_path"],
+        )
+
+        return redirect(
+            url_for(
+                "report_preview",
+                report_id=saved_report["id"],
+            )
+        )
+
+    except Exception as exc:
+        app.logger.exception(
+            "New report generation failed"
+        )
+
+        return redirect(
+            url_for(
+                "reports",
+                machine_id=machine_id,
+                error=f"Failed to generate report: {exc}",
+            )
+        )
+
+
+@app.route("/reports/<int:report_id>")
+def report_preview(report_id):
+    client = get_supabase_client()
+
+    response = (
+        client.schema(SUPABASE_ANALYTICS_SCHEMA)
+        .table("generated_reports")
+        .select("*")
+        .eq("id", report_id)
+        .limit(1)
+        .execute()
+    )
+
+    rows = response.data or []
+
+    if not rows:
+        return redirect(
+            url_for(
+                "reports",
+                error="Report not found.",
+            )
+        )
+
+    report = rows[0]
+
+    return render_template(
+        "report_preview.html",
+        report=report,
+        report_data=report["report_data"],
+    )
+
+
+@app.route(
+    "/reports/<int:report_id>/update",
+    methods=["POST"]
+)
+def update_existing_report(report_id):
+    client = get_supabase_client()
+
+    existing_response = (
+        client
+        .schema(SUPABASE_ANALYTICS_SCHEMA)
+        .table("generated_reports")
+        .select("*")
+        .eq("id", report_id)
+        .eq("report_type", "performance")
+        .single()
+        .execute()
+    )
+
+    existing_report = existing_response.data
+
+    if not existing_report:
+        return redirect(
+            url_for(
+                "reports",
+                error="Report not found.",
+            )
+        )
+
+    machine_id = existing_report["machine_id"]
+    period_start = date.fromisoformat(
+        existing_report["period_start"]
+    )
+    period_end = date.fromisoformat(
+        existing_report["period_end"]
+    )
+
+    try:
+        result = create_report(
+            machine_id,
+            period_start,
+            period_end,
+        )
+
+        report_data = result["report_data"]
+
+        update_payload = {
+            "generated_at": datetime.now().isoformat(),
+
+            "total_readings": report_data["total_readings"],
+
+            "normal_count": report_data["status_counts"]["normal"],
+            "warning_count": report_data["status_counts"]["warning"],
+            "failure_count": report_data["status_counts"]["failure"],
+
+            "normal_percentage": (
+                report_data["status_percentages"]["normal"]
+            ),
+            "warning_percentage": (
+                report_data["status_percentages"]["warning"]
+            ),
+            "failure_percentage": (
+                report_data["status_percentages"]["failure"]
+            ),
+
+            "temperature_avg": (
+                report_data["temperature"]["average"]
+            ),
+            "temperature_min": (
+                report_data["temperature"]["minimum"]
+            ),
+            "temperature_max": (
+                report_data["temperature"]["maximum"]
+            ),
+
+            "current_avg": (
+                report_data["current"]["average"]
+            ),
+            "current_min": (
+                report_data["current"]["minimum"]
+            ),
+            "current_max": (
+                report_data["current"]["maximum"]
+            ),
+
+            "vibration_avg": (
+                report_data["vibration"]["average"]
+            ),
+            "vibration_min": (
+                report_data["vibration"]["minimum"]
+            ),
+            "vibration_max": (
+                report_data["vibration"]["maximum"]
+            ),
+
+            "overall_status": report_data["overall_status"],
+            "summary": report_data["summary"],
+            "report_data": report_data,
+
+            "file_path": result["file_path"],
+        }
+
+        (
+            client
+            .schema(SUPABASE_ANALYTICS_SCHEMA)
+            .table("generated_reports")
+            .update(update_payload)
+            .eq("id", report_id)
+            .execute()
+        )
+
+        return redirect(
+            url_for(
+                "report_preview",
+                report_id=report_id,
+            )
+        )
+
+    except Exception as exc:
+        app.logger.exception(
+            "Existing report update failed"
+        )
+
+        return redirect(
+            url_for(
+                "report_preview",
+                report_id=report_id,
+                error=f"Failed to update report: {exc}",
+            )
+        )
+
+
+@app.route("/reports/<int:report_id>/download")
+def download_report(report_id):
+    client = get_supabase_client()
+
+    response = (
+        client.schema(SUPABASE_ANALYTICS_SCHEMA)
+        .table("generated_reports")
+        .select("machine_id,period_start,period_end,file_path")
+        .eq("id", report_id)
+        .limit(1)
+        .execute()
+    )
+
+    rows = response.data or []
+
+    if not rows:
+        return redirect(
+            url_for(
+                "reports",
+                error="Report not found.",
+            )
+        )
+
+    report = rows[0]
+
+    file_path = report.get("file_path")
+
+    if not file_path:
+        return redirect(
+            url_for(
+                "reports",
+                error="PDF file is not available for this report.",
+            )
+        )
+
+    try:
+        pdf_bytes = (
+            client.storage
+            .from_(REPORT_STORAGE_BUCKET)
+            .download(file_path)
+        )
+
+        filename = (
+            f"{report['machine_id']}_"
+            f"performance_"
+            f"{report['period_start']}_"
+            f"{report['period_end']}.pdf"
+        )
+
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=filename,
+        )
+
+    except Exception as exc:
+        app.logger.exception("Report download failed")
+
+        return redirect(
+            url_for(
+                "reports",
+                error=f"Failed to download report: {exc}",
+            )
+        )
 
 
 @app.route("/settings")

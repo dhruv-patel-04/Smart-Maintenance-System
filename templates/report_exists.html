@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="panel">
+            <div class="panel-header">
+                Report Already Exists
+            </div>
+
+            <div class="panel-body">
+                <p class="mb-3">
+                    A performance report already exists for:
+                </p>
+
+                <div class="mb-4">
+                    <strong>{{ machine_id }}</strong><br>
+                    {{ period_start }} → {{ period_end }}
+                </div>
+
+                <p class="text-secondary">
+                    Choose whether you want to view the existing report,
+                    update it with the latest data, or create a new report
+                    while keeping the previous report.
+                </p>
+
+                <div class="d-flex gap-2 flex-wrap mt-4">
+
+                    <!-- View -->
+                    <a
+                        href="{{ url_for(
+                            'report_preview',
+                            report_id=existing_report.id
+                        ) }}"
+                        class="btn btn-outline-primary"
+                    >
+                        View
+                    </a>
+
+                    <!-- Update Existing -->
+                    <form
+                        method="POST"
+                        action="{{ url_for(
+                            'update_existing_report',
+                            report_id=existing_report.id
+                        ) }}"
+                    >
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                        >
+                            Update Existing
+                        </button>
+                    </form>
+
+                    <!-- Generate New -->
+                    <form
+                        method="POST"
+                        action="{{ url_for('generate_new_report') }}"
+                    >
+                        <input
+                            type="hidden"
+                            name="machine_id"
+                            value="{{ machine_id }}"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="period_start"
+                            value="{{ period_start }}"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="period_end"
+                            value="{{ period_end }}"
+                        >
+
+                        <button
+                            type="submit"
+                            class="btn btn-outline-primary"
+                        >
+                            Generate New
+                        </button>
+                    </form>
+
+                    <!-- Cancel -->
+                    <a
+                        href="{{ url_for(
+                            'reports',
+                            machine_id=machine_id
+                        ) }}"
+                        class="btn btn-outline-secondary"
+                    >
+                        Cancel
+                    </a>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

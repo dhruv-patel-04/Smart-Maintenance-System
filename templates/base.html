@@ -205,6 +205,9 @@
             }
         }
     </style>
+
+    {% block styles %}{% endblock %}
+    
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark topbar">
@@ -214,6 +217,7 @@
             <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">Dashboard</a>
             <a class="nav-link {% if request.path.startswith('/charts') %}active{% endif %}" href="/charts">Charts</a>
             <a class="nav-link {% if request.path.startswith('/history') %}active{% endif %}" href="/history">History</a>
+            <a class="nav-link {% if request.path.startswith('/reports') %}active{% endif %}" href="/reports">Reports</a>
             <a class="nav-link {% if request.path.startswith('/settings') %}active{% endif %}" href="/settings">Settings</a>
         </div>
     </div>

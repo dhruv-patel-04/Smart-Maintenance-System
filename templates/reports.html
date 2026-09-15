@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-4">
+    <div>
+        <h2 class="mb-1 fw-bold">Performance Reports</h2>
+        <p class="text-secondary mb-0">
+            Generate and review historical motor performance reports.
+        </p>
+    </div>
+</div>
+
+{% if request.args.get("error") %}
+<div class="alert alert-danger">
+    {{ request.args.get("error") }}
+</div>
+{% endif %}
+
+<div class="panel mb-4">
+    <div class="panel-header">Generate Performance Report</div>
+
+    <div class="panel-body">
+        <form method="POST" action="{{ url_for('generate_report') }}">
+
+            <div class="row g-3 align-items-end">
+
+                <div class="col-lg-4">
+                    <label class="form-label fw-semibold">
+                        Device / Machine
+                    </label>
+
+                    <select
+                        class="form-select"
+                        name="machine_id"
+                        required
+                    >
+                        <option value="">Select machine</option>
+
+                        {% for machine in machines %}
+                        <option
+                            value="{{ machine }}"
+                            {% if machine == selected_machine %}selected{% endif %}
+                        >
+                            {{ machine }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-lg-3">
+                    <label class="form-label fw-semibold">
+                        Start Date
+                    </label>
+
+                    <input
+                        type="date"
+                        class="form-control"
+                        name="period_start"
+                        max="{{ today }}"
+                        required
+                    >
+                </div>
+
+                <div class="col-lg-3">
+                    <label class="form-label fw-semibold">
+                        End Date
+                    </label>
+
+                    <input
+                        type="date"
+                        class="form-control"
+                        name="period_end"
+                        max="{{ today }}"
+                        required
+                    >
+                </div>
+
+                <div class="col-lg-2">
+                    <button
+                        type="submit"
+                        class="btn btn-primary w-100"
+                    >
+                        Generate Report
+                    </button>
+                </div>
+
+            </div>
+
+        </form>
+    </div>
+</div>
+
+
+<div class="panel">
+    <div class="panel-header d-flex justify-content-between align-items-center">
+        <span>Generated Reports</span>
+
+        {% if selected_machine %}
+        <span class="text-secondary small">
+            {{ selected_machine }}
+        </span>
+        {% endif %}
+    </div>
+
+    <div class="panel-body">
+
+        {% if generated_reports %}
+
+        <div class="table-responsive table-wrap">
+
+            <table class="table table-hover">
+
+                <thead>
+                    <tr>
+                        <th>Machine</th>
+                        <th>Period</th>
+                        <th>Status</th>
+                        <th>Readings</th>
+                        <th>Generated</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                {% for report in generated_reports %}
+
+                <tr>
+
+                    <td class="fw-semibold">
+                        {{ report.machine_id }}
+                    </td>
+
+                    <td>
+                        {{ report.period_start }}
+                        →
+                        {{ report.period_end }}
+                    </td>
+
+                    <td>
+                        {% if report.overall_status == "Normal" %}
+                            <span class="status-pill status-normal">
+                                Normal
+                            </span>
+                        {% elif report.overall_status == "Warning" %}
+                            <span class="status-pill status-warning">
+                                Warning
+                            </span>
+                        {% else %}
+                            <span class="status-pill status-failure">
+                                Failure
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {{ "{:,}".format(report.total_readings or 0) }}
+                    </td>
+
+                    <td>
+                        {{ report.generated_at[:19].replace("T", " ") }}
+                    </td>
+
+                    <td class="text-end">
+
+                        <a
+                            href="{{ url_for('report_preview', report_id=report.id) }}"
+                            class="btn btn-sm btn-outline-primary"
+                        >
+                            View
+                        </a>
+
+                        <a
+                            href="{{ url_for('download_report', report_id=report.id) }}"
+                            class="btn btn-sm btn-outline-secondary"
+                        >
+                            Download
+                        </a>
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="text-center py-5 text-secondary">
+            <div class="mb-2 fw-semibold">
+                No generated reports yet
+            </div>
+
+            <div class="small">
+                Select a machine and date range above to generate your first report.
+            </div>
+        </div>
+
+        {% endif %}
+
+    </div>
+</div>
+
+{% endblock %}

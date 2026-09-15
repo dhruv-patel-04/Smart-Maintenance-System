@@ -39,6 +39,58 @@ create table if not exists analytics.sensor_predictions (
   created_at timestamptz not null default now()
 );
 
+create table if not exists analytics.generated_reports (
+  id bigint generated always as identity primary key,
+
+  machine_id varchar(50) not null,
+
+  report_type varchar(30) not null default 'performance',
+
+  period_start date not null,
+  period_end date not null,
+
+  generated_at timestamptz not null default now(),
+
+  total_readings bigint not null default 0,
+
+  normal_count bigint not null default 0,
+  warning_count bigint not null default 0,
+  failure_count bigint not null default 0,
+
+  normal_percentage double precision,
+  warning_percentage double precision,
+  failure_percentage double precision,
+
+  temperature_avg double precision,
+  temperature_min double precision,
+  temperature_max double precision,
+
+  current_avg double precision,
+  current_min double precision,
+  current_max double precision,
+
+  vibration_avg double precision,
+  vibration_min double precision,
+  vibration_max double precision,
+
+  overall_status varchar(20),
+
+  summary text,
+
+  report_data jsonb not null default '{}'::jsonb,
+
+  file_path text,
+
+  created_at timestamptz not null default now(),
+
+);
+
+create index if not exists idx_generated_reports_machine
+  on analytics.generated_reports(machine_id);
+
+create index if not exists idx_generated_reports_period
+  on analytics.generated_reports(period_start, period_end);
+
 create index if not exists idx_raw_readings_event_ts on iot.raw_sensor_readings(event_ts desc);
 create index if not exists idx_raw_readings_processed on iot.raw_sensor_readings(processed, id);
 create index if not exists idx_predictions_event_ts on analytics.sensor_predictions(event_ts desc);
@@ -69,3 +121,77 @@ grant usage, select on sequences to anon, authenticated, service_role;
 
 alter default privileges in schema analytics
 grant usage, select on sequences to anon, authenticated, service_role;
+
+
+-- ============================================================
+-- GENERATED PERFORMANCE REPORTS
+-- ============================================================
+
+grant select, insert, update
+on analytics.generated_reports
+to anon;
+
+grant usage, select
+on sequence analytics.generated_reports_id_seq
+to anon;
+
+alter table analytics.generated_reports enable row level security;
+
+create policy "Allow anon to create performance reports"
+on analytics.generated_reports
+for insert
+to anon
+with check (
+    report_type = 'performance'
+);
+
+create policy "Allow anon to read performance reports"
+on analytics.generated_reports
+for select
+to anon
+using (
+    report_type = 'performance'
+);
+
+create policy "Allow anon to update performance reports"
+on analytics.generated_reports
+for update
+to anon
+using (
+    report_type = 'performance'
+)
+with check (
+    report_type = 'performance'
+);
+
+-- ============================================================
+-- STORAGE: MAINTENANCE REPORTS
+-- ============================================================
+
+create policy "Allow anon to upload maintenance reports"
+on storage.objects
+for insert
+to anon
+with check (
+    bucket_id = 'maintenance-reports'
+);
+
+create policy "Allow anon to read maintenance reports"
+on storage.objects
+for select
+to anon
+using (
+    bucket_id = 'maintenance-reports'
+);
+
+create policy "Allow anon to update maintenance reports"
+on storage.objects
+for update
+to anon
+using (
+    bucket_id = 'maintenance-reports'
+)
+with check (
+    bucket_id = 'maintenance-reports'
+);
+

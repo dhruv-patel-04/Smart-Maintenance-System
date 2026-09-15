@@ -1,6 +1,7 @@
 import io
 import os
 from datetime import datetime, date, timedelta
+from functools import wraps
 from zoneinfo import ZoneInfo
 from types import SimpleNamespace
 
@@ -16,6 +17,7 @@ from flask import (
     url_for,
     send_file,
     flash,
+    session,
 )
 from report_generator import build_report_data, generate_pdf
 from supabase import Client, create_client
@@ -27,6 +29,25 @@ LABEL_ENCODER_PATH = os.path.join(BASE_DIR, "label_encoder.pkl")
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
+
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False,    #Make This TRUE during deployment
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+)
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("user"):
+            return redirect(url_for("login"))
+        
+        return f(*args, **kwargs)
+
+    return decorated_function
+
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = (
     os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -552,8 +573,174 @@ def fetch_generated_reports(machine_id: str | None = None) -> list[dict]:
 
 
 
+# =========================================================
+# AUTHENTICATION
+# =========================================================
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        if session.get("user"):
+            return redirect(url_for("dashboard"))
+
+        return render_template("login.html")
+
+    email = request.form.get("email", "").strip()
+    password = request.form.get("password", "")
+
+    if not email or not password:
+        return render_template(
+            "login.html",
+            error="Email and password are required.",
+            email=email,
+        )
+
+    try:
+        client = get_supabase_client()
+
+        response = client.auth.sign_in_with_password(
+            {
+                "email": email,
+                "password": password,
+            }
+        )
+
+        if not response.user or not response.session:
+            return render_template(
+                "login.html",
+                error="Invalid email or password.",
+                email=email,
+            )
+
+        session["user"] = {
+            "id": response.user.id,
+            "email": response.user.email,
+        }
+
+        session["access_token"] = response.session.access_token
+        session["refresh_token"] = response.session.refresh_token
+        session.permanent = True
+
+        return redirect(url_for("dashboard"))
+
+    except Exception as exc:
+        app.logger.exception("Login failed")
+
+        return render_template(
+            "login.html",
+            error="Invalid email or password.",
+            email=email,
+        )
+
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "GET":
+        if session.get("user"):
+            return redirect(url_for("dashboard"))
+
+        return render_template("signup.html")
+
+    full_name = request.form.get("full_name", "").strip()
+    email = request.form.get("email", "").strip()
+    password = request.form.get("password", "")
+    confirm_password = request.form.get("confirm_password", "")
+
+    if not full_name or not email or not password:
+        return render_template(
+            "signup.html",
+            error="All fields are required.",
+            full_name=full_name,
+            email=email,
+        )
+
+    if password != confirm_password:
+        return render_template(
+            "signup.html",
+            error="Passwords do not match.",
+            full_name=full_name,
+            email=email,
+        )
+
+    if len(password) < 6:
+        return render_template(
+            "signup.html",
+            error="Password must be at least 6 characters.",
+            full_name=full_name,
+            email=email,
+        )
+
+    try:
+        client = get_supabase_client()
+
+        response = client.auth.sign_up(
+            {
+                "email": email,
+                "password": password,
+                "options": {
+                    "data": {
+                        "full_name": full_name,
+                    }
+                },
+            }
+        )
+
+        if not response.user:
+            return render_template(
+                "signup.html",
+                error="Unable to create account.",
+                full_name=full_name,
+                email=email,
+            )
+
+        # If email confirmation is disabled, Supabase may return
+        # an active session immediately.
+        if response.session:
+            session["user"] = {
+                "id": response.user.id,
+                "email": response.user.email,
+            }
+
+            session["access_token"] = response.session.access_token
+            session["refresh_token"] = response.session.refresh_token
+            session.permanent = True
+
+            return redirect(url_for("dashboard"))
+
+        # If email confirmation is enabled, send the user to login.
+        return render_template(
+            "login.html",
+            message="Account created successfully. Please check your email to confirm your account, then log in.",
+            email=email,
+        )
+
+    except Exception as exc:
+        app.logger.exception("Signup failed")
+
+        return render_template(
+            "signup.html",
+            error="Unable to create account. Please try again.",
+            full_name=full_name,
+            email=email,
+        )
+
+
+@app.route("/logout")
+def logout():
+    try:
+        client = get_supabase_client()
+        client.auth.sign_out()
+    except Exception:
+        pass
+
+    session.clear()
+
+    return redirect(url_for("login"))
+
+
 
 @app.route("/")
+@login_required
 def dashboard():
     payload = to_dashboard_payload()
 
@@ -577,6 +764,7 @@ def dashboard():
 
 
 @app.route("/history")
+@login_required
 def history():
     page_size = 50
     page = request.args.get("page", default=1, type=int)
@@ -615,6 +803,7 @@ def history():
 
 
 @app.route("/charts")
+@login_required
 def charts():
     range_key = request.args.get("range", "24h")
     chart_payload = build_chart_payload(range_key)
@@ -625,6 +814,7 @@ def charts():
 
 
 @app.route("/reports")
+@login_required
 def reports():
     machine_id = request.args.get("machine_id", "").strip()
 
@@ -648,6 +838,7 @@ def reports():
 
 
 @app.route("/reports/generate", methods=["POST"])
+@login_required
 def generate_report():
     machine_id = request.form.get("machine_id", "").strip()
     start_value = request.form.get("period_start", "").strip()
@@ -778,6 +969,7 @@ def generate_report():
 
 
 @app.route("/reports/generate-new", methods=["POST"])
+@login_required
 def generate_new_report():
     machine_id = request.form.get("machine_id", "").strip()
     start_value = request.form.get("period_start", "").strip()
@@ -841,6 +1033,7 @@ def generate_new_report():
 
 
 @app.route("/reports/<int:report_id>")
+@login_required
 def report_preview(report_id):
     client = get_supabase_client()
 
@@ -876,6 +1069,7 @@ def report_preview(report_id):
     "/reports/<int:report_id>/update",
     methods=["POST"]
 )
+@login_required
 def update_existing_report(report_id):
     client = get_supabase_client()
 
@@ -1004,6 +1198,7 @@ def update_existing_report(report_id):
 
 
 @app.route("/reports/<int:report_id>/download")
+@login_required
 def download_report(report_id):
     client = get_supabase_client()
 
@@ -1071,6 +1266,7 @@ def download_report(report_id):
 
 
 @app.route("/settings")
+@login_required
 def settings():
     message = request.args.get("message", "")
     error = request.args.get("error", "")
@@ -1084,6 +1280,7 @@ def settings():
 
 
 @app.route("/settings/save", methods=["POST"])
+@login_required
 def save_settings():
     form = request.form
     device_id = str(form.get("device_id", "")).strip()
@@ -1111,6 +1308,7 @@ def save_settings():
 
 
 @app.route("/settings/delete", methods=["POST"])
+@login_required
 def delete_settings():
     device_id = str(request.form.get("device_id", "")).strip()
     if not device_id:
@@ -1132,17 +1330,20 @@ def health():
 
 
 @app.route("/api/dashboard-data")
+@login_required
 def api_dashboard_data():
     return jsonify(to_dashboard_payload())
 
 
 @app.route("/api/chart-data")
+@login_required
 def api_chart_data():
     range_key = request.args.get("range", "24h")
     return jsonify(build_chart_payload(range_key))
 
 
 @app.route("/api/predict", methods=["POST"])
+@login_required
 def api_predict():
     data = request.get_json(force=True)
     try:
@@ -1168,6 +1369,7 @@ def api_predict():
 
 
 @app.route("/api/ingest", methods=["POST"])
+@login_required
 def api_ingest():
     return jsonify(
         {
@@ -1180,6 +1382,7 @@ def api_ingest():
 
 
 @app.route("/seed-demo")
+@login_required
 def seed_demo():
     return redirect(url_for("dashboard"))
 

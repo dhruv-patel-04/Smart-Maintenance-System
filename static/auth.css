@@ -1,0 +1,200 @@
+:root {
+    --auth-ink: #10233d;
+    --auth-muted: #66768a;
+    --auth-line: #d8e2ee;
+    --auth-surface: #ffffff;
+    --auth-accent: #0f8a83;
+    --auth-accent-dark: #0b6661;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body.auth-page {
+    min-height: 100vh;
+    margin: 0;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    color: var(--auth-ink);
+    background:
+        radial-gradient(900px 500px at 0% 0%, #dbe7f8 0%, transparent 62%),
+        radial-gradient(800px 500px at 100% 100%, #d8f0ec 0%, transparent 58%),
+        linear-gradient(135deg, #f7f9fc 0%, #e8eef7 100%);
+    font-family: "Manrope", sans-serif;
+}
+
+.auth-shell {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.9fr) minmax(340px, 1.1fr);
+    width: min(920px, 100%);
+    overflow: hidden;
+    background: var(--auth-surface);
+    border: 1px solid rgba(216, 226, 238, 0.9);
+    border-radius: 18px;
+    box-shadow: 0 20px 55px rgba(16, 35, 61, 0.13);
+}
+
+.auth-identity {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 560px;
+    padding: 2.5rem;
+    color: #fff;
+    background:
+        linear-gradient(145deg, rgba(16, 35, 61, 0.98), rgba(17, 73, 91, 0.94)),
+        #10233d;
+}
+
+.auth-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.auth-brand img {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
+    padding: 0.2rem;
+    background: #fff;
+    border-radius: 10px;
+}
+
+.auth-identity h1 {
+    max-width: 14rem;
+    margin: 0 0 1rem;
+    font-size: clamp(2rem, 4vw, 3.15rem);
+    line-height: 1.08;
+    letter-spacing: -1px;
+}
+
+.auth-identity p {
+    max-width: 25rem;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.72);
+    line-height: 1.7;
+}
+
+.auth-signal {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: #b8eee8;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.auth-signal::before {
+    width: 8px;
+    height: 8px;
+    content: "";
+    background: #70d8cf;
+    border-radius: 50%;
+    box-shadow: 0 0 0 5px rgba(112, 216, 207, 0.14);
+}
+
+.auth-form-panel {
+    padding: 2.5rem clamp(2rem, 5vw, 4rem);
+}
+
+.auth-form-panel h2 {
+    margin-bottom: 0.45rem;
+    font-size: 1.7rem;
+    font-weight: 800;
+}
+
+.auth-subtitle {
+    margin-bottom: 1.75rem;
+    color: var(--auth-muted);
+}
+
+.auth-form-panel .form-label {
+    margin-bottom: 0.45rem;
+    color: var(--auth-ink);
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.auth-form-panel .form-control {
+    min-height: 48px;
+    border-color: var(--auth-line);
+    border-radius: 10px;
+    color: var(--auth-ink);
+}
+
+.auth-form-panel .form-control:focus {
+    border-color: var(--auth-accent);
+    box-shadow: 0 0 0 0.2rem rgba(15, 138, 131, 0.14);
+}
+
+.auth-submit {
+    min-height: 48px;
+    margin-top: 0.35rem;
+    border: 0;
+    border-radius: 10px;
+    background: var(--auth-accent);
+    font-weight: 800;
+}
+
+.auth-submit:hover,
+.auth-submit:focus-visible {
+    background: var(--auth-accent-dark);
+}
+
+.auth-alert {
+    border: 0;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+
+.auth-footer {
+    margin-top: 1.5rem;
+    color: var(--auth-muted);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.auth-footer a {
+    color: var(--auth-accent-dark);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.auth-footer a:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 700px) {
+    body.auth-page {
+        padding: 0;
+    }
+
+    .auth-shell {
+        min-height: 100vh;
+        grid-template-columns: 1fr;
+        border: 0;
+        border-radius: 0;
+    }
+
+    .auth-identity {
+        min-height: 0;
+        padding: 1.5rem;
+        gap: 2rem;
+    }
+
+    .auth-identity h1 {
+        max-width: none;
+        font-size: 2.25rem;
+    }
+
+    .auth-form-panel {
+        padding: 2rem 1.5rem 2.5rem;
+    }
+}

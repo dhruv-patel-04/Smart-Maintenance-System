@@ -34,7 +34,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY")
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=False,    #Make This TRUE during deployment
+    SESSION_COOKIE_SECURE=True,
     PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
 )
 
@@ -292,7 +292,8 @@ def load_model_artifacts():
     return model, label_encoder
 
 
-MODEL, LABEL_ENCODER = load_model_artifacts()
+MODEL = None
+LABEL_ENCODER = None
 
 
 def recommend_action(status: str) -> str:
@@ -313,9 +314,14 @@ def hybrid_override(temp_c: float, current_a: float, vibration_rms_g: float):
 
 
 def predict_status(temp_c: float, current_a: float, vibration_rms_g: float, load_level: str):
+    global MODEL, LABEL_ENCODER
+
     override_status, override_conf = hybrid_override(temp_c, current_a, vibration_rms_g)
     if override_status:
         return override_status, override_conf
+
+    if MODEL is None or LABEL_ENCODER is None:
+        MODEL, LABEL_ENCODER = load_model_artifacts()
 
     input_df = pd.DataFrame(
         [{
@@ -1356,9 +1362,12 @@ def api_predict():
     except (KeyError, ValueError, TypeError) as exc:
         return jsonify({"error": f"Invalid input: {exc}"}), 400
 
-    predicted_status, confidence = predict_status(
-        temp_c, current_a, vibration_rms_g, load_level
-    )
+    try:
+        predicted_status, confidence = predict_status(
+            temp_c, current_a, vibration_rms_g, load_level
+        )
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 503
     action = recommend_action(predicted_status)
 
     return jsonify(

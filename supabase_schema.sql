@@ -81,7 +81,7 @@ create table if not exists analytics.generated_reports (
 
   file_path text,
 
-  created_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
 
 );
 
@@ -194,4 +194,3 @@ using (
 with check (
     bucket_id = 'maintenance-reports'
 );
-

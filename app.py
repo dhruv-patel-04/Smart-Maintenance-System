@@ -633,96 +633,98 @@ def login():
         )
 
 
-@app.route("/signup", methods=["GET", "POST"])
-def signup():
-    if request.method == "GET":
-        if session.get("user"):
-            return redirect(url_for("dashboard"))
+# Uncommment below to enable signup functionality. Make sure to configure Supabase authentication settings accordingly. 
 
-        return render_template("signup.html")
+# @app.route("/signup", methods=["GET", "POST"])
+# def signup():
+#     if request.method == "GET":
+#         if session.get("user"):
+#             return redirect(url_for("dashboard"))
 
-    full_name = request.form.get("full_name", "").strip()
-    email = request.form.get("email", "").strip()
-    password = request.form.get("password", "")
-    confirm_password = request.form.get("confirm_password", "")
+#         return render_template("signup.html")
 
-    if not full_name or not email or not password:
-        return render_template(
-            "signup.html",
-            error="All fields are required.",
-            full_name=full_name,
-            email=email,
-        )
+#     full_name = request.form.get("full_name", "").strip()
+#     email = request.form.get("email", "").strip()
+#     password = request.form.get("password", "")
+#     confirm_password = request.form.get("confirm_password", "")
 
-    if password != confirm_password:
-        return render_template(
-            "signup.html",
-            error="Passwords do not match.",
-            full_name=full_name,
-            email=email,
-        )
+#     if not full_name or not email or not password:
+#         return render_template(
+#             "signup.html",
+#             error="All fields are required.",
+#             full_name=full_name,
+#             email=email,
+#         )
 
-    if len(password) < 6:
-        return render_template(
-            "signup.html",
-            error="Password must be at least 6 characters.",
-            full_name=full_name,
-            email=email,
-        )
+#     if password != confirm_password:
+#         return render_template(
+#             "signup.html",
+#             error="Passwords do not match.",
+#             full_name=full_name,
+#             email=email,
+#         )
 
-    try:
-        client = get_supabase_client()
+#     if len(password) < 6:
+#         return render_template(
+#             "signup.html",
+#             error="Password must be at least 6 characters.",
+#             full_name=full_name,
+#             email=email,
+#         )
 
-        response = client.auth.sign_up(
-            {
-                "email": email,
-                "password": password,
-                "options": {
-                    "data": {
-                        "full_name": full_name,
-                    }
-                },
-            }
-        )
+#     try:
+#         client = get_supabase_client()
 
-        if not response.user:
-            return render_template(
-                "signup.html",
-                error="Unable to create account.",
-                full_name=full_name,
-                email=email,
-            )
+#         response = client.auth.sign_up(
+#             {
+#                 "email": email,
+#                 "password": password,
+#                 "options": {
+#                     "data": {
+#                         "full_name": full_name,
+#                     }
+#                 },
+#             }
+#         )
 
-        # If email confirmation is disabled, Supabase may return
-        # an active session immediately.
-        if response.session:
-            session["user"] = {
-                "id": response.user.id,
-                "email": response.user.email,
-            }
+#         if not response.user:
+#             return render_template(
+#                 "signup.html",
+#                 error="Unable to create account.",
+#                 full_name=full_name,
+#                 email=email,
+#             )
 
-            session["access_token"] = response.session.access_token
-            session["refresh_token"] = response.session.refresh_token
-            session.permanent = True
+#         # If email confirmation is disabled, Supabase may return
+#         # an active session immediately.
+#         if response.session:
+#             session["user"] = {
+#                 "id": response.user.id,
+#                 "email": response.user.email,
+#             }
 
-            return redirect(url_for("dashboard"))
+#             session["access_token"] = response.session.access_token
+#             session["refresh_token"] = response.session.refresh_token
+#             session.permanent = True
 
-        # If email confirmation is enabled, send the user to login.
-        return render_template(
-            "login.html",
-            message="Account created successfully. Please check your email to confirm your account, then log in.",
-            email=email,
-        )
+#             return redirect(url_for("dashboard"))
 
-    except Exception as exc:
-        app.logger.exception("Signup failed")
+#         # If email confirmation is enabled, send the user to login.
+#         return render_template(
+#             "login.html",
+#             message="Account created successfully. Please check your email to confirm your account, then log in.",
+#             email=email,
+#         )
 
-        return render_template(
-            "signup.html",
-            error="Unable to create account. Please try again.",
-            full_name=full_name,
-            email=email,
-        )
+#     except Exception as exc:
+#         app.logger.exception("Signup failed")
+
+#         return render_template(
+#             "signup.html",
+#             error="Unable to create account. Please try again.",
+#             full_name=full_name,
+#             email=email,
+#         )
 
 
 @app.route("/logout")

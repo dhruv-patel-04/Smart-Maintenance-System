@@ -1,10 +1,6 @@
 # Smart Maintenance System (IoT + ML)
 
-## Project Description
-
-The Smart Maintenance System is a comprehensive IoT and machine learning based predictive maintenance platform for induction motor and machine health monitoring. The system continuously collects condition data such as temperature, electrical current, and vibration from sensors connected to an ESP32 microcontroller. These readings are transmitted to the backend, stored in Supabase (PostgreSQL), and analyzed with a trained ML model to classify machine health into three states: `Normal`, `Warning`, and `Failure`.
-
-Unlike traditional monitoring approaches based on periodic manual inspection or binary fault detection, this system provides early-warning capability by identifying anomalies before complete breakdown. Results are shown on a web dashboard with trend graphs, alerts, and maintenance recommendations. The project aligns with Industry 4.0 and smart manufacturing principles, and is suitable for academic demos, research extension, and future industrial deployment.
+A full starter implementation for an IoT and ML based smart maintenance system.
 
 ## Features
 - Flask web dashboard
@@ -13,24 +9,6 @@ Unlike traditional monitoring approaches based on periodic manual inspection or 
 - Standalone IoT ingestion (ESP32/simulator can write directly to Supabase)
 - Real-time prediction for `Normal`, `Warning`, `Failure`
 - Sensor simulator to emulate ESP32/IoT data flow
-
-## Components Used
-
-| Technology | Role | Justification |
-| --- | --- | --- |
-| ESP32 | IoT edge device | Low-cost, Wi-Fi capable, multi-sensor support |
-| DS18B20 | Temperature sensing | Accurate, digital, calibrated |
-| MPU6050 | Vibration sensing | 3-axis acceleration, I2C interface |
-| SCT-013 | Current sensing | Non-invasive, safe measurement |
-| Flask | Backend API | Python-native, REST-ready, ML-compatible |
-| Supabase (PostgreSQL) | Data storage | Reliable, queryable, scalable |
-| scikit-learn | ML training and inference | Proven algorithms, easy deployment |
-| Bootstrap / Chart.js | Dashboard UI | Responsive, interactive visualization |
-
-## Demo Links
-
-- Project Photos (Google Drive): [View Photos](https://drive.google.com/drive/folders/13W69TlmXebuScUT7REDCSsejwGq2KibL?usp=sharing)
-- Demo Video (Google Drive): [Watch Demo](https://drive.google.com/file/d/1aZij8xNNYYm9vCM_X0xIrBfq-6NKXcCe/view?usp=sharing)
 
 ## Project Structure
 - `app.py` - Flask dashboard + predict API (reads prediction rows from Supabase)

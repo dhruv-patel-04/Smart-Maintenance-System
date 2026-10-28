@@ -472,4 +472,4 @@ The sketch uses GPIO 4 for the DS18B20 data line, GPIO 34 for current sensing, a
 
 ## License
 
-No license file is currently included in the repository. Add a license before distributing the project outside its intended project context.
+This project is licensed under the [MIT License](./LICENSE).
